@@ -151,7 +151,7 @@ Client                              Server
 ## Resources
 
 - [Machine Payments Protocol](https://mpp.dev)
-- [mppx SDK](https://github.com/mppx/mppx)
+- [mppx SDK](https://github.com/wevm/mppx)
 - [XPR Network Docs](https://docs.xprnetwork.org)
 - [WebAuth Wallet](https://webauth.com)
 - [XPR Network Explorer](https://explorer.xprnetwork.org)
