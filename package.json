@@ -1,0 +1,23 @@
+{
+  "name": "mpp-xpr",
+  "version": "0.1.0",
+  "description": "XPR Network payment method for the Machine Payments Protocol (MPP)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --loader ts-node/esm src/test.ts"
+  },
+  "keywords": ["mpp", "xpr", "proton", "payments", "machine-payments", "crypto"],
+  "author": "charliebot87",
+  "license": "MIT",
+  "dependencies": {
+    "@proton/js": "^28.1.2",
+    "mppx": "^0.4.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0"
+  }
+}
