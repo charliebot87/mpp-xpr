@@ -1,7 +1,7 @@
 {
   "name": "mpp-xpr",
   "version": "0.1.0",
-  "description": "XPR Network payment method for the Machine Payments Protocol (MPP)",
+  "description": "XPR Network payment method for the Machine Payments Protocol (MPP) — zero gas fees, sub-second finality",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",

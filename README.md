@@ -2,7 +2,7 @@
 
 XPR Network payment method for the [Machine Payments Protocol (MPP)](https://mpp.dev).
 
-Zero gas fees. Sub-second finality. WebAuth wallet support.
+Zero gas fees. Sub-second finality. XPR Network support.
 
 ## Install
 
@@ -53,7 +53,7 @@ const { fetch } = Mppx.create({
 const response = await fetch('https://api.example.com/premium')
 ```
 
-## Why XPR?
+## Why XPR Network?
 
 - **Zero gas fees** — micropayments that actually work
 - **Sub-second finality** — payment confirms in <0.5s
