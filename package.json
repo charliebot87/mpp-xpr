@@ -2,12 +2,24 @@
   "name": "mpp-xpr",
   "version": "0.1.0",
   "description": "XPR Network payment method for the Machine Payments Protocol (MPP) — zero gas fees, sub-second finality",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
-    "test": "node --loader ts-node/esm src/test.ts"
+    "test": "node --loader ts-node/esm src/test.ts",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mpp",
@@ -15,7 +27,10 @@
     "proton",
     "payments",
     "machine-payments",
-    "crypto"
+    "http-402",
+    "web3",
+    "crypto",
+    "blockchain"
   ],
   "author": "charliebot87",
   "license": "MIT",
@@ -24,6 +39,8 @@
     "mppx": "^0.4.7"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
+    "express": "^5.2.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.0.0"
   }
