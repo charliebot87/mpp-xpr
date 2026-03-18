@@ -9,7 +9,14 @@
     "build": "tsc",
     "test": "node --loader ts-node/esm src/test.ts"
   },
-  "keywords": ["mpp", "xpr", "proton", "payments", "machine-payments", "crypto"],
+  "keywords": [
+    "mpp",
+    "xpr",
+    "proton",
+    "payments",
+    "machine-payments",
+    "crypto"
+  ],
   "author": "charliebot87",
   "license": "MIT",
   "dependencies": {
@@ -17,7 +24,7 @@
     "mppx": "^0.4.7"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "ts-node": "^10.9.0"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0"
   }
 }
