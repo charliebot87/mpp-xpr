@@ -64,12 +64,15 @@ export function sessionServer(config: XprSessionConfig) {
       recipient,
     },
 
-    // Generate a unique vest name for each challenge
-    request({ request }) {
+    // Generate a unique vest name for each challenge.
+    // When a credential is present, preserve the vestName from the echoed challenge
+    // so the HMAC matches. Only generate a new name for fresh 402 challenges.
+    request({ credential, request }: { credential?: any; request: any }) {
+      const existingVestName = credential?.challenge?.request?.vestName as string | undefined
       return {
         ...request,
         recipient: request.recipient ?? recipient,
-        vestName: request.vestName ?? generateVestName(),
+        vestName: existingVestName || request.vestName || generateVestName(),
       }
     },
 
@@ -77,11 +80,17 @@ export function sessionServer(config: XprSessionConfig) {
       const { vestName } = credential.payload
       const expectedRecipient = request.recipient ?? recipient
 
-      // Check for replay
+      // Check for replay — if already verified, return cached receipt (idempotent)
       const storeKey = `mppx:xpr:session:${vestName}`
       const seen = await usedVestStore.get(storeKey)
       if (seen !== null) {
-        throw new Error('Vest name has already been used (replay rejected)')
+        const cached = typeof seen === 'object' && seen !== null ? seen as Record<string, any> : null
+        return Receipt.from({
+          method: 'xpr',
+          status: 'success',
+          reference: cached?.reference || vestName,
+          timestamp: cached?.timestamp || new Date().toISOString(),
+        })
       }
 
       // Verify on-chain
@@ -92,13 +101,14 @@ export function sessionServer(config: XprSessionConfig) {
         rpc,
       })
 
-      // Mark as used
-      await usedVestStore.put(storeKey, Date.now())
+      // Mark as used with reference for idempotent replay
+      const reference = `${vestName}:${result.vest.id}:${result.vest.from}`
+      await usedVestStore.put(storeKey, { reference, timestamp: new Date().toISOString() })
 
       return Receipt.from({
         method: 'xpr',
         status: 'success',
-        reference: `${vestName}:${result.vest.id}:${result.vest.from}`,
+        reference,
         timestamp: new Date().toISOString(),
       })
     },

@@ -3,7 +3,10 @@ export interface VerifyOptions {
     recipient: string;
     amount: string;
     memo?: string;
+    /** Primary Hyperion endpoint */
     hyperion?: string;
+    /** Additional fallback Hyperion endpoints */
+    hyperionEndpoints?: string[];
 }
 export interface VerifyResult {
     valid: boolean;
@@ -15,7 +18,8 @@ export interface VerifyResult {
 }
 /**
  * Verify an XPR token transfer on-chain via Hyperion.
- * Checks: tx executed, correct recipient, correct amount, correct memo, irreversibility.
+ * Tries the primary endpoint first, then falls back to alternates.
+ * Checks: tx executed, correct recipient, correct amount, correct memo.
  */
 export declare function verifyTransfer(options: VerifyOptions): Promise<VerifyResult>;
 export declare class VerificationError extends Error {

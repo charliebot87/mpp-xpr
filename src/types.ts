@@ -5,8 +5,10 @@
 export interface XprChargeConfig {
   /** XPR account to receive payments (e.g., 'charliebot') */
   recipient: string
-  /** Hyperion API endpoint for tx verification */
+  /** Primary Hyperion API endpoint for tx verification (falls back to built-in list) */
   hyperion?: string
+  /** Additional Hyperion fallback endpoints */
+  hyperionEndpoints?: string[]
   /** XPR Network RPC endpoint */
   rpc?: string
   /** Challenge expiry in milliseconds (default: 5 minutes) */
@@ -19,6 +21,15 @@ export interface XprChargeParameters extends XprChargeConfig {
   /** Default memo */
   memo?: string
 }
+
+/** Default Hyperion endpoints, tried in order */
+export const DEFAULT_HYPERION_ENDPOINTS = [
+  'https://proton.eosusa.io',
+  'https://proton.protonuk.io',
+  'https://proton-api.eosiomadrid.io',
+  'https://xpr-mainnet-api.bloxprod.io',
+  'https://proton-hyperion.luminaryvisn.com',
+]
 
 export interface XprSessionConfig {
   /** XPR account to receive payments (e.g., 'myservice') */

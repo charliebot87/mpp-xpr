@@ -15,7 +15,7 @@ export { xprClient } from './client.js'
 export { verifyTransfer, VerificationError } from './verify.js'
 export { verifySession, SessionVerificationError } from './session-verify.js'
 
-// Types
+// Types & constants
 export type {
   XprChargeConfig,
   XprChargeParameters,
@@ -23,3 +23,4 @@ export type {
   HyperionTransaction,
   HyperionAction,
 } from './types.js'
+export { DEFAULT_HYPERION_ENDPOINTS } from './types.js'

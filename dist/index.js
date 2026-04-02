@@ -10,3 +10,4 @@ export { xprClient } from './client.js';
 // Verification utilities
 export { verifyTransfer, VerificationError } from './verify.js';
 export { verifySession, SessionVerificationError } from './session-verify.js';
+export { DEFAULT_HYPERION_ENDPOINTS } from './types.js';

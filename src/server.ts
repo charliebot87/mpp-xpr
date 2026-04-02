@@ -26,7 +26,8 @@ import type { XprChargeParameters } from './types.js'
 function chargeServer(parameters: XprChargeParameters) {
   const {
     recipient,
-    hyperion = 'https://proton.eosusa.io',
+    hyperion,
+    hyperionEndpoints,
     amount,
     memo,
   } = parameters
@@ -60,16 +61,15 @@ function chargeServer(parameters: XprChargeParameters) {
       }
 
       // Verify on-chain via Hyperion with retries.
-      // Hyperion indexing can lag 2-10s behind block production,
-      // so we retry with exponential backoff before failing.
-      const MAX_RETRIES = 4
-      const INITIAL_DELAY_MS = 1500
+      // verifyTransfer already tries multiple Hyperion endpoints,
+      // but we still retry for indexing lag (tx not indexed yet on ANY node).
+      const MAX_RETRIES = 3
+      const RETRY_DELAYS = [2000, 3000, 5000]
       let lastError: Error | null = null
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         if (attempt > 0) {
-          const delay = INITIAL_DELAY_MS * Math.pow(1.5, attempt - 1)
-          await new Promise((r) => setTimeout(r, delay))
+          await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt - 1]))
         }
         try {
           const result = await verifyTransfer({
@@ -78,6 +78,7 @@ function chargeServer(parameters: XprChargeParameters) {
             amount: expectedAmount,
             memo: request.memo,
             hyperion,
+            hyperionEndpoints,
           })
 
           // Mark as used with timestamp for idempotent replay
@@ -91,19 +92,9 @@ function chargeServer(parameters: XprChargeParameters) {
           })
         } catch (e: any) {
           lastError = e
-          // Retry on transient errors (not found, rate limited, server errors).
-          // Only throw immediately on definitive validation failures
-          // (amount mismatch, memo mismatch, wrong recipient, etc.)
+          // Definitive failures (amount mismatch, wrong recipient) — don't retry
           const msg = e.message || ''
-          const isTransient = msg.includes('not found') ||
-            msg.includes('HTTP 404') ||
-            msg.includes('HTTP 429') ||
-            msg.includes('HTTP 502') ||
-            msg.includes('HTTP 503') ||
-            msg.includes('HTTP 504') ||
-            msg.includes('did not execute') ||
-            msg.includes('fetch failed')
-          if (!isTransient) {
+          if (msg.includes('mismatch') || (msg.includes('No eosio.token') && !msg.includes('not found'))) {
             throw e
           }
         }
