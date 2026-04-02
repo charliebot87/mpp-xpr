@@ -1,23 +1,33 @@
 import { Credential, Method } from 'mppx';
 import { charge } from './methods.js';
 /**
- * Client-side XPR payment method.
- * Signs a transfer when a 402 is received.
+ * Client-side XPR payment method for mppx.
+ *
+ * Usage:
+ * ```ts
+ * import { Mppx } from 'mppx/client'
+ * import { xprClient } from 'mppx-xpr-network'
+ *
+ * const client = Mppx.create({
+ *   methods: [xprClient({ signTransaction: ... })],
+ * })
+ * ```
  */
-export function createClient(options) {
+export function xprClient(options) {
     return Method.toClient(charge, {
         async createCredential({ challenge }) {
             const { amount, recipient, memo } = challenge.request;
+            // Build eosio.token::transfer action
             const actions = [
                 {
                     account: 'eosio.token',
                     name: 'transfer',
-                    authorization: [{ actor: '', permission: 'active' }], // Set by wallet
+                    authorization: [{ actor: '', permission: 'active' }],
                     data: {
-                        from: '', // Set by wallet
+                        from: '',
                         to: recipient,
                         quantity: amount,
-                        memo: memo ?? 'mpp payment',
+                        memo: memo ?? challenge.id,
                     },
                 },
             ];
@@ -26,7 +36,6 @@ export function createClient(options) {
                 challenge,
                 payload: {
                     txHash: result.transactionId,
-                    blockNum: result.blockNum,
                 },
             });
             return Credential.serialize(credential);

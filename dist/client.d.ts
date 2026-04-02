@@ -1,15 +1,27 @@
 import { Method } from 'mppx';
-interface XprClientOptions {
+export interface XprClientOptions {
+    /**
+     * Sign and broadcast a transaction via WebAuth or any EOSIO wallet.
+     * Should return the transaction ID after broadcast.
+     */
     signTransaction: (actions: any[]) => Promise<{
         transactionId: string;
-        blockNum?: number;
     }>;
 }
 /**
- * Client-side XPR payment method.
- * Signs a transfer when a 402 is received.
+ * Client-side XPR payment method for mppx.
+ *
+ * Usage:
+ * ```ts
+ * import { Mppx } from 'mppx/client'
+ * import { xprClient } from 'mppx-xpr-network'
+ *
+ * const client = Mppx.create({
+ *   methods: [xprClient({ signTransaction: ... })],
+ * })
+ * ```
  */
-export declare function createClient(options: XprClientOptions): Method.Client<{
+export declare function xprClient(options: XprClientOptions): Method.Client<{
     readonly name: "xpr";
     readonly intent: "charge";
     readonly schema: {
@@ -17,14 +29,11 @@ export declare function createClient(options: XprClientOptions): Method.Client<{
             amount: import("zod/mini").ZodMiniString<string>;
             recipient: import("zod/mini").ZodMiniString<string>;
             memo: import("zod/mini").ZodMiniOptional<import("zod/mini").ZodMiniString<string>>;
-            chainId: import("zod/mini").ZodMiniOptional<import("zod/mini").ZodMiniString<string>>;
         }, import("zod/v4/core").$strip>;
         readonly credential: {
             readonly payload: import("zod/mini").ZodMiniObject<{
                 txHash: import("zod/mini").ZodMiniString<string>;
-                blockNum: import("zod/mini").ZodMiniOptional<import("zod/mini").ZodMiniNumber<number>>;
             }, import("zod/v4/core").$strip>;
         };
     };
 }, undefined>;
-export {};

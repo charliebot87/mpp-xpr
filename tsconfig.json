@@ -7,8 +7,10 @@
     "declaration": true,
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true
   },
   "include": ["src/**/*"],
-  "exclude": ["src/test.ts"]
+  "exclude": ["src/test.ts", "node_modules", "dist", "examples"]
 }

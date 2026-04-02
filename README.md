@@ -1,158 +1,151 @@
-# mpp-xpr
+# mppx-xpr-network
 
-XPR Network payment method for the [Machine Payments Protocol (MPP)](https://mpp.dev).
+XPR Network payment method for the [Machine Payments Protocol](https://mpp.dev) (MPP).
 
-Zero gas fees. Sub-second finality. Human-readable accounts. WebAuth wallet support.
-
-[![npm](https://img.shields.io/npm/v/mpp-xpr)](https://www.npmjs.com/package/mpp-xpr)
-[![license](https://img.shields.io/npm/l/mpp-xpr)](LICENSE)
-
-## What is this?
-
-An [`mppx`](https://github.com/wevm/mppx) plugin that adds XPR Network as a crypto payment method for the Machine Payments Protocol. Works alongside `tempo.charge` and `stripe.charge` — any MPP-compatible client can pay with XPR tokens.
+Zero gas fees. Sub-second finality. Human-readable accounts. Built for machine-to-machine payments.
 
 ## Installation
 
 ```bash
-npm install mpp-xpr mppx
+npm install mppx-xpr-network mppx
 ```
 
-## Quick Start
+## Server Usage
 
-### Server — accept XPR payments
-
-```typescript
-import crypto from 'crypto'
+```ts
 import { Mppx } from 'mppx/server'
-import { createServer, charge } from 'mpp-xpr'
+import { xpr } from 'mppx-xpr-network'
 
-const xpr = createServer({ recipient: 'youraccount' })
-const mppSecretKey = crypto.randomBytes(32).toString('base64')
+const mppx = Mppx.create({
+  methods: [
+    xpr.charge({ recipient: 'charliebot' }),
+  ],
+  secretKey: process.env.MPP_SECRET_KEY,
+})
 
-export async function handler(request: Request) {
-  const mppx = Mppx.create({
-    methods: [xpr],
-    secretKey: mppSecretKey,
-  })
-
-  const result = await mppx.charge({
-    amount: '0.0001',
-    recipient: 'youraccount',
+// In your route handler (Next.js, Express, etc.)
+export async function GET(request: Request) {
+  const result = await mppx.xpr.charge({
+    amount: '1.0000 XPR',
   })(request)
 
   if (result.status === 402) return result.challenge
 
-  return result.withReceipt(Response.json({ data: 'premium content' }))
+  return result.withReceipt(
+    Response.json({ joke: 'Why did the AI cross the blockchain?' })
+  )
 }
 ```
 
-### Client — pay automatically on 402
+The server automatically:
+- Returns `402` with `WWW-Authenticate: Payment` challenge header
+- Parses `Authorization: Payment` credentials from retry requests
+- Verifies the on-chain transfer via [Hyperion](https://proton.eosusa.io)
+- Attaches `Payment-Receipt` header to successful responses
+- Rejects replay attacks (duplicate transaction hashes)
 
-```typescript
+## Client Usage
+
+```ts
 import { Mppx } from 'mppx/client'
-import { createClient } from 'mpp-xpr'
+import { xprClient } from 'mppx-xpr-network'
 
-const xprClient = createClient({
-  // Wire to your wallet (WebAuth, @proton/js, etc.)
-  async signTransaction(actions) {
-    const result = await session.transact({ actions })
-    return { transactionId: result.transaction_id }
-  },
+const mppx = Mppx.create({
+  methods: [
+    xprClient({
+      signTransaction: async (actions) => {
+        // Use WebAuth SDK, @nicknguyen/proton-web-sdk, or any EOSIO wallet
+        const result = await session.transact({ actions }, { broadcast: true })
+        return { transactionId: result.processed.id }
+      },
+    }),
+  ],
 })
-
-const mppx = Mppx.create({ methods: [xprClient] })
-
-// Automatically pays XPR when a 402 is received
-const response = await mppx.fetch('https://api.example.com/premium')
 ```
 
-See [`examples/`](examples/) for a complete working demo.
-
-## API Reference
-
-### `createServer(options)`
-
-Creates a server-side payment verifier. Returns a `Method.Server` compatible with `mppx/server`.
-
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `recipient` | `string` | required | Expected XPR account to receive payment |
-| `rpcEndpoint` | `string` | `https://api.protonnz.com` | XPR Network RPC endpoint |
-| `verifyAmount` | `boolean` | `true` | Check that the transferred amount matches the request |
-
-Verifies via the node RPC first, then falls back to [Hyperion](https://proton.eosusa.io) for recently submitted transactions.
-
-### `createClient(options)`
-
-Creates a client-side payment method. Returns a `Method.Client` compatible with `mppx/client`.
-
-| Option | Type | Description |
-|---|---|---|
-| `signTransaction` | `(actions) => Promise<{ transactionId, blockNum? }>` | Wallet integration — signs and broadcasts `eosio.token::transfer` |
-
-### `charge` (method definition)
-
-The raw method schema — useful for building custom client/server logic.
-
-```typescript
-import { charge } from 'mpp-xpr'
-// charge.name    = 'xpr'
-// charge.intent  = 'charge'
-// charge.schema  = { request: ZodSchema, credential: { payload: ZodSchema } }
-```
-
-## How It Works
+## Payment Flow
 
 ```
-Client                              Server
-  │                                   │
-  │── GET /api/premium ──────────────>│
-  │                                   │← No credential
-  │<── 402 + WWW-Authenticate ────────│
-  │                                   │
-  │── signs eosio.token::transfer ────│ (WebAuth / @proton/js)
-  │── submits tx to XPR Network ──────│
-  │                                   │
-  │── GET /api/premium                │
-  │   Authorization: Payment <cred> ─>│
-  │                                   │← verifies tx on-chain
-  │<── 200 + Payment-Receipt ─────────│
+Client                          Server                      XPR Network
+  |                               |                              |
+  |  GET /api/resource            |                              |
+  |------------------------------>|                              |
+  |                               |                              |
+  |  402 + WWW-Authenticate:      |                              |
+  |  Payment (challenge)          |                              |
+  |<------------------------------|                              |
+  |                               |                              |
+  |  eosio.token::transfer        |                              |
+  |  to=charliebot, memo=uuid     |                              |
+  |------------------------------------------------------------->|
+  |                               |                              |
+  |  GET /api/resource            |                              |
+  |  Authorization: Payment       |                              |
+  |  (credential with txHash)     |                              |
+  |------------------------------>|                              |
+  |                               |  verify tx via Hyperion      |
+  |                               |----------------------------->|
+  |                               |                              |
+  |  200 OK + Payment-Receipt     |                              |
+  |  (content + receipt header)   |                              |
+  |<------------------------------|                              |
+```
+
+## Configuration
+
+```ts
+xpr.charge({
+  // Required
+  recipient: 'charliebot',        // XPR account to receive payments
+
+  // Optional
+  hyperion: 'https://proton.eosusa.io',  // Hyperion API for verification
+  rpc: 'https://api.protonnz.com',       // XPR Network RPC
+  amount: '1.0000 XPR',                  // Default amount
+  memo: 'custom-memo',                   // Default memo
+  expiryMs: 5 * 60 * 1000,              // Challenge expiry (5 min default)
+})
 ```
 
 ## Why XPR Network for Machine Payments?
 
-| Feature | XPR Network | Ethereum | Solana |
-|---|---|---|---|
-| Gas fees | **Zero** | $0.50-50+ | $0.001-0.01 |
-| Finality | **< 0.5 seconds** | ~12 seconds | ~400ms |
-| Account format | **Human-readable** (`charliebot`) | Hex (`0x7a3b...`) | Base58 (`7nYB...`) |
-| Wallet | **WebAuth** (biometrics) | MetaMask | Phantom |
-| Identity | **Built-in KYC** | None | None |
+| Feature | XPR Network | Ethereum | Solana | Tempo |
+|---------|------------|----------|--------|-------|
+| Gas fees | **$0 (zero)** | $0.50-$50+ | $0.001-$0.05 | ~$0.001 |
+| Finality | **< 500ms** | ~12 min | ~400ms | ~1s |
+| Account names | **Human-readable** (`charliebot`) | Hex (`0x7a58...`) | Base58 (`Gh9Z...`) | Hex |
+| Identity/KYC | **Built-in** | None | None | None |
+| Wallet auth | **Biometric (WebAuth)** | Seed phrase | Seed phrase | Seed phrase |
+| Account creation | **Free** | Free (EOA) | ~$0.002 | Free |
+| Smart contracts | Yes (C++) | Yes (Solidity) | Yes (Rust) | Yes (Solidity) |
 
-For micropayments, zero gas fees mean 100% of the payment goes to the service — no transaction cost eating into a $0.001 API call.
+### XPR Network advantages for agents and machines:
+- **Zero gas fees** — the payment amount is exactly what the recipient gets
+- **Sub-second finality** — no waiting for block confirmations
+- **Human-readable accounts** — pay `charliebot` not `0x7a58c3F2...`
+- **Built-in identity** — on-chain KYC verification for compliance
+- **WebAuth wallet** — biometric authentication, no seed phrases needed
+- **Free account creation** — onboard users at zero cost
+- **On-chain agent registry** — trust scores, escrow jobs, A2A protocol
 
-## Chain Info
+## Spec Compliance
 
-| | |
-|---|---|
-| Mainnet RPC | `https://api.protonnz.com` |
-| Chain ID | `384da888112027f0321850a169f737c33e53b388aad48b5adace4bab97f437e0` |
-| Token contract | `eosio.token` |
-| Token symbol | `XPR` (4 decimal places) |
-| Hyperion | `https://proton.eosusa.io` |
-| Explorer | `https://explorer.xprnetwork.org` |
-| Wallet | [webauth.com](https://webauth.com) |
+This package implements the [Payment Authentication](https://paymentauth.org) IETF draft:
 
-## Resources
+- `WWW-Authenticate: Payment` — 402 challenge header
+- `Authorization: Payment` — credential header with base64-encoded proof
+- `Payment-Receipt` — receipt header with base64-encoded settlement proof
+- HMAC-bound challenge IDs via mppx `secretKey`
+- Replay protection via transaction hash deduplication
 
-- [Machine Payments Protocol](https://mpp.dev) — the open protocol spec
-- [MPP Overview](https://mpp.dev/overview) — how MPP works
-- [Stripe MPP Docs](https://docs.stripe.com/payments/machine/mpp) — Stripe's MPP integration guide
-- [IETF Spec](https://paymentauth.org) — the IETF payment authorization spec
-- [mppx SDK](https://github.com/wevm/mppx) — official MPP SDK by Tempo/Wevm
-- [XPR Network Docs](https://docs.xprnetwork.org)
+## Links
+
+- [MPP Specification](https://mpp.dev)
+- [Payment Authentication (IETF)](https://paymentauth.org)
+- [XPR Network](https://xprnetwork.org)
 - [WebAuth Wallet](https://webauth.com)
-- [XPR Network Explorer](https://explorer.xprnetwork.org)
+- [mppx SDK](https://github.com/wevm/mppx)
+- [Playground Demo](https://x402.charliebot.dev)
 
 ## License
 

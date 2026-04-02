@@ -1,67 +1,79 @@
-import { Method, Receipt } from 'mppx';
-import { JsonRpc } from '@proton/js';
-import { charge } from './methods.js';
+import { Method, Receipt, Store } from 'mppx';
+import { charge as chargeMethod } from './methods.js';
+import { verifyTransfer } from './verify.js';
 /**
- * Server-side XPR payment verification.
- * Checks the transaction on-chain to confirm payment.
+ * Creates a server-side XPR Network charge method for mppx.
+ *
+ * Usage with Mppx.create():
+ * ```ts
+ * import { Mppx } from 'mppx/server'
+ * import { xpr } from 'mppx-xpr-network'
+ *
+ * const mppx = Mppx.create({
+ *   methods: [xpr.charge({ recipient: 'charliebot' })],
+ *   secretKey: process.env.MPP_SECRET_KEY,
+ * })
+ *
+ * // In your route handler:
+ * const result = await mppx.xpr.charge({ amount: '1.0000 XPR' })(request)
+ * if (result.status === 402) return result.challenge
+ * return result.withReceipt(Response.json({ data: '...' }))
+ * ```
  */
-export function createServer(options) {
-    const rpc = new JsonRpc(options.rpcEndpoint ?? 'https://api.protonnz.com');
-    const shouldVerifyAmount = options.verifyAmount !== false;
-    return Method.toServer(charge, {
+function chargeServer(parameters) {
+    const { recipient, hyperion = 'https://proton.eosusa.io', amount, memo, } = parameters;
+    // In-memory store for used transaction hashes (replay protection)
+    const usedTxStore = Store.memory();
+    return Method.toServer(chargeMethod, {
+        defaults: {
+            amount,
+            recipient,
+            memo,
+        },
         async verify({ credential, request }) {
             const { txHash } = credential.payload;
-            const { amount, recipient } = request;
-            const expectedRecipient = recipient ?? options.recipient;
-            // --- Try node RPC first ---
-            try {
-                const tx = await rpc.history_get_transaction(txHash);
-                if (tx?.trx?.trx) {
-                    const actions = tx.trx.trx.actions ?? [];
-                    const transfer = actions.find((a) => a.account === 'eosio.token' &&
-                        a.name === 'transfer' &&
-                        a.data.to === expectedRecipient);
-                    if (transfer) {
-                        if (shouldVerifyAmount && transfer.data.quantity !== amount) {
-                            throw new Error(`Amount mismatch: expected ${amount}, got ${transfer.data.quantity}`);
-                        }
-                        return Receipt.from({
-                            method: 'xpr',
-                            status: 'success',
-                            reference: txHash,
-                            timestamp: new Date().toISOString(),
-                        });
-                    }
-                }
+            const expectedRecipient = request.recipient ?? recipient;
+            const expectedAmount = request.amount;
+            // Check for replay (idempotency)
+            const storeKey = `mppx:xpr:charge:${txHash.toLowerCase()}`;
+            const seen = await usedTxStore.get(storeKey);
+            if (seen !== null) {
+                throw new Error('Transaction hash has already been used (replay rejected)');
             }
-            catch (err) {
-                // Fall through to Hyperion
-                if (err.message?.startsWith('Amount mismatch'))
-                    throw err;
-            }
-            // --- Hyperion fallback ---
-            const hyperionUrl = `https://proton.eosusa.io/v2/history/get_transaction?id=${txHash}`;
-            const resp = await fetch(hyperionUrl);
-            if (!resp.ok) {
-                throw new Error(`Transaction ${txHash} not found or not yet confirmed`);
-            }
-            const data = await resp.json();
-            if (!data.executed) {
-                throw new Error(`Transaction ${txHash} did not execute successfully`);
-            }
-            const transferAction = (data.actions ?? []).find((a) => a.act.name === 'transfer' && a.act.data.to === expectedRecipient);
-            if (!transferAction) {
-                throw new Error(`No transfer to ${expectedRecipient} found in transaction ${txHash}`);
-            }
-            if (shouldVerifyAmount && transferAction.act.data.quantity !== amount) {
-                throw new Error(`Amount mismatch: expected ${amount}, got ${transferAction.act.data.quantity}`);
-            }
+            // Verify on-chain via Hyperion
+            const result = await verifyTransfer({
+                txHash,
+                recipient: expectedRecipient,
+                amount: expectedAmount,
+                memo: request.memo,
+                hyperion,
+            });
+            // Mark as used
+            await usedTxStore.put(storeKey, Date.now());
             return Receipt.from({
                 method: 'xpr',
                 status: 'success',
                 reference: txHash,
-                timestamp: new Date().toISOString(),
+                timestamp: result.timestamp || new Date().toISOString(),
             });
         },
     });
 }
+/**
+ * XPR Network payment method namespace for mppx.
+ *
+ * ```ts
+ * import { xpr } from 'mppx-xpr-network'
+ * import { Mppx } from 'mppx/server'
+ *
+ * const mppx = Mppx.create({
+ *   methods: [xpr.charge({ recipient: 'charliebot' })],
+ *   secretKey,
+ * })
+ * ```
+ */
+export const xpr = {
+    /** Creates an XPR Network charge method for one-time token transfers. */
+    charge: chargeServer,
+};
+export { chargeServer as charge };

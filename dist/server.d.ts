@@ -1,14 +1,25 @@
 import { Method } from 'mppx';
-interface XprServerOptions {
-    rpcEndpoint?: string;
-    recipient: string;
-    verifyAmount?: boolean;
-}
+import type { XprChargeParameters } from './types.js';
 /**
- * Server-side XPR payment verification.
- * Checks the transaction on-chain to confirm payment.
+ * Creates a server-side XPR Network charge method for mppx.
+ *
+ * Usage with Mppx.create():
+ * ```ts
+ * import { Mppx } from 'mppx/server'
+ * import { xpr } from 'mppx-xpr-network'
+ *
+ * const mppx = Mppx.create({
+ *   methods: [xpr.charge({ recipient: 'charliebot' })],
+ *   secretKey: process.env.MPP_SECRET_KEY,
+ * })
+ *
+ * // In your route handler:
+ * const result = await mppx.xpr.charge({ amount: '1.0000 XPR' })(request)
+ * if (result.status === 402) return result.challenge
+ * return result.withReceipt(Response.json({ data: '...' }))
+ * ```
  */
-export declare function createServer(options: XprServerOptions): Method.Server<{
+declare function chargeServer(parameters: XprChargeParameters): Method.Server<{
     readonly name: "xpr";
     readonly intent: "charge";
     readonly schema: {
@@ -16,14 +27,33 @@ export declare function createServer(options: XprServerOptions): Method.Server<{
             amount: import("zod/mini").ZodMiniString<string>;
             recipient: import("zod/mini").ZodMiniString<string>;
             memo: import("zod/mini").ZodMiniOptional<import("zod/mini").ZodMiniString<string>>;
-            chainId: import("zod/mini").ZodMiniOptional<import("zod/mini").ZodMiniString<string>>;
         }, import("zod/v4/core").$strip>;
         readonly credential: {
             readonly payload: import("zod/mini").ZodMiniObject<{
                 txHash: import("zod/mini").ZodMiniString<string>;
-                blockNum: import("zod/mini").ZodMiniOptional<import("zod/mini").ZodMiniNumber<number>>;
             }, import("zod/v4/core").$strip>;
         };
     };
-}, {}, undefined>;
-export {};
+}, {
+    readonly amount: string | undefined;
+    readonly recipient: string;
+    readonly memo: string | undefined;
+}, undefined>;
+/**
+ * XPR Network payment method namespace for mppx.
+ *
+ * ```ts
+ * import { xpr } from 'mppx-xpr-network'
+ * import { Mppx } from 'mppx/server'
+ *
+ * const mppx = Mppx.create({
+ *   methods: [xpr.charge({ recipient: 'charliebot' })],
+ *   secretKey,
+ * })
+ * ```
+ */
+export declare const xpr: {
+    /** Creates an XPR Network charge method for one-time token transfers. */
+    charge: typeof chargeServer;
+};
+export { chargeServer as charge };
