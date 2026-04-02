@@ -91,19 +91,129 @@ Client                          Server                      XPR Network
   |<------------------------------|                              |
 ```
 
+## Sessions (Streaming Payments)
+
+Sessions use the XPR Network `vest` contract for time-locked streaming payments. The client deposits XPR into a vest stream; the server verifies on-chain and streams content. Either party can stop the session early — remaining funds are refunded.
+
+```ts
+import { Mppx } from 'mppx/server'
+import { xpr } from 'mppx-xpr-network'
+
+const mppx = Mppx.create({
+  methods: [
+    xpr.session({
+      recipient: 'myservice',
+      rpc: 'https://api.protonnz.com',
+    }),
+  ],
+  secretKey: process.env.MPP_SECRET_KEY,
+})
+
+// Streaming endpoint
+export async function GET(request: Request) {
+  const result = await mppx.xpr.session({
+    maxAmount: '10.0000 XPR',
+    duration: 300, // 5 minutes
+  })(request)
+
+  if (result.status === 402) return result.challenge
+
+  // Stream content to the client
+  const stream = new ReadableStream({ ... })
+  return result.withReceipt(new Response(stream))
+}
+```
+
+### Session Flow
+
+```
+Client                          Server                      XPR Network (vest)
+  |                               |                              |
+  |  GET /api/stream              |                              |
+  |------------------------------>|                              |
+  |                               |                              |
+  |  402 + WWW-Authenticate:      |                              |
+  |  Payment (session challenge)  |                              |
+  |  {vestName, maxAmount, dur}   |                              |
+  |<------------------------------|                              |
+  |                               |                              |
+  |  1. transfer XPR to vest      |                              |
+  |     memo="deposit"            |                              |
+  |  2. startvest(vestName, ...)  |                              |
+  |------------------------------------------------------------->|
+  |                               |                              |
+  |  GET /api/stream              |                              |
+  |  Authorization: Payment       |                              |
+  |  {vestName}                   |                              |
+  |------------------------------>|                              |
+  |                               |  verify vest table           |
+  |                               |----------------------------->|
+  |                               |                              |
+  |  200 OK (streaming content)   |                              |
+  |  + Payment-Receipt            |                              |
+  |<------------------------------|                              |
+  |                               |                              |
+  |           ... streaming ...   |  claimvest (periodic)        |
+  |                               |----------------------------->|
+  |                               |                              |
+  |  stopvest (session end)       |                              |
+  |------------------------------------------------------------->|
+  |                               |  final claimvest             |
+  |                               |----------------------------->|
+```
+
+### Vest Contract Actions
+
+| Action | Who | What |
+|--------|-----|------|
+| `eosio.token::transfer` to `vest` | Client | Deposit XPR (memo: "deposit") |
+| `vest::startvest` | Client | Start streaming session |
+| `vest::claimvest` | Server | Withdraw accrued tokens |
+| `vest::stopvest` | Either | End session early, refund remainder |
+
+### Sessions vs Charges
+
+| | `xpr.charge()` | `xpr.session()` |
+|---|---|---|
+| Use case | One-time payment | Streaming / metered |
+| On-chain actions | 1 (transfer) | 2+ (deposit + startvest + claims) |
+| Refundable | No | Yes (stopvest refunds remainder) |
+| Verification | Hyperion tx lookup | Vest table query |
+| Gas fees | $0 | $0 |
+
+### XPR Sessions vs Tempo Sessions
+
+| | XPR Network | Tempo (EVM) |
+|---|---|---|
+| Gas to open session | **$0** | ~$0.001 (EVM tx) |
+| Gas to close session | **$0** | ~$0.001 (EVM tx) |
+| Gas per claim | **$0** | ~$0.001 per claim |
+| Finality | < 500ms | ~1s |
+| Accounts | Human-readable | Hex addresses |
+| Native streaming | vest contract | Custom contract |
+
+XPR Network's zero gas fees mean sessions cost exactly nothing to open, claim, and close — the only cost is the actual payment amount.
+
 ## Configuration
+
+### Charge
 
 ```ts
 xpr.charge({
-  // Required
   recipient: 'charliebot',        // XPR account to receive payments
-
-  // Optional
   hyperion: 'https://proton.eosusa.io',  // Hyperion API for verification
   rpc: 'https://api.protonnz.com',       // XPR Network RPC
   amount: '1.0000 XPR',                  // Default amount
   memo: 'custom-memo',                   // Default memo
-  expiryMs: 5 * 60 * 1000,              // Challenge expiry (5 min default)
+})
+```
+
+### Session
+
+```ts
+xpr.session({
+  recipient: 'myservice',                // XPR account to receive payments
+  rpc: 'https://api.protonnz.com',       // RPC for vest table queries
 })
 ```
 

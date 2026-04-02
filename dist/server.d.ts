@@ -1,4 +1,5 @@
 import { Method } from 'mppx';
+import { sessionServer } from './session.js';
 import type { XprChargeParameters } from './types.js';
 /**
  * Creates a server-side XPR Network charge method for mppx.
@@ -55,5 +56,7 @@ declare function chargeServer(parameters: XprChargeParameters): Method.Server<{
 export declare const xpr: {
     /** Creates an XPR Network charge method for one-time token transfers. */
     charge: typeof chargeServer;
+    /** Creates an XPR Network session method for streaming payments via vest contract. */
+    session: typeof sessionServer;
 };
 export { chargeServer as charge };

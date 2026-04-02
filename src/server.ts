@@ -1,6 +1,7 @@
 import { Method, Receipt, Store } from 'mppx'
 import { charge as chargeMethod } from './methods.js'
 import { verifyTransfer } from './verify.js'
+import { sessionServer } from './session.js'
 import type { XprChargeParameters } from './types.js'
 
 /**
@@ -89,6 +90,8 @@ function chargeServer(parameters: XprChargeParameters) {
 export const xpr = {
   /** Creates an XPR Network charge method for one-time token transfers. */
   charge: chargeServer,
+  /** Creates an XPR Network session method for streaming payments via vest contract. */
+  session: sessionServer,
 }
 
 export { chargeServer as charge }

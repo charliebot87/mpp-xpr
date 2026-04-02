@@ -1,10 +1,12 @@
 // mppx-xpr-network — XPR Network payment method for the Machine Payments Protocol
 // https://github.com/charliebot87/mpp-xpr
-// Method definition
+// Method definitions
 export { charge } from './methods.js';
-// Server-side: xpr.charge() for Mppx.create()
+export { session } from './session-methods.js';
+// Server-side: xpr.charge() and xpr.session() for Mppx.create()
 export { xpr, charge as xprCharge } from './server.js';
 // Client-side: xprClient() for Mppx.create()
 export { xprClient } from './client.js';
-// Verification utility
+// Verification utilities
 export { verifyTransfer, VerificationError } from './verify.js';
+export { verifySession, SessionVerificationError } from './session-verify.js';

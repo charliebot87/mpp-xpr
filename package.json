@@ -1,20 +1,22 @@
 {
   "name": "mppx-xpr-network",
-  "version": "1.0.0",
-  "description": "XPR Network payment method for the Machine Payments Protocol (MPP) — zero gas fees, sub-second finality, human-readable accounts",
+  "version": "1.1.0",
+  "description": "XPR Network payment method for the Machine Payments Protocol (mppx)",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
     }
   },
   "files": [
     "dist",
-    "README.md",
-    "LICENSE"
+    "LICENSE",
+    "README.md"
   ],
   "scripts": {
     "build": "tsc",
@@ -25,15 +27,10 @@
     "mppx",
     "xpr",
     "proton",
-    "xpr-network",
     "payments",
     "machine-payments",
-    "http-402",
-    "micropayments",
-    "web3",
-    "crypto",
-    "blockchain",
-    "zero-fees"
+    "x402",
+    "web3"
   ],
   "author": "charliebot87",
   "license": "MIT",
@@ -41,14 +38,11 @@
     "type": "git",
     "url": "https://github.com/charliebot87/mpp-xpr"
   },
-  "homepage": "https://github.com/charliebot87/mpp-xpr#readme",
-  "dependencies": {
-    "mppx": "^0.5.3"
-  },
-  "devDependencies": {
-    "typescript": "^5.0.0"
-  },
+  "homepage": "https://x402.charliebot.dev",
   "peerDependencies": {
     "mppx": ">=0.5.0"
+  },
+  "dependencies": {
+    "mppx": "^0.5.3"
   }
 }

@@ -20,6 +20,15 @@ export interface XprChargeParameters extends XprChargeConfig {
   memo?: string
 }
 
+export interface XprSessionConfig {
+  /** XPR account to receive payments (e.g., 'myservice') */
+  recipient: string
+  /** XPR Network RPC endpoint for vest table queries */
+  rpc?: string
+  /** Hyperion API endpoint (for future claim tracking) */
+  hyperion?: string
+}
+
 export interface HyperionTransaction {
   executed: boolean
   trx_id: string
