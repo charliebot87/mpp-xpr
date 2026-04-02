@@ -5,12 +5,14 @@ export interface VestRow {
   vestName: string
   from: string
   to: string
-  deposit: string
+  deposit: string | { quantity: string; contract: string }
   vestPerSecond: string
+  remainingVest?: string
   startTime: number
   endTime: number
-  lastClaimTime: number
-  stoppable: boolean
+  lastClaimTime?: number
+  lastVestTime?: number
+  stoppable: number | boolean
 }
 
 export interface VerifySessionOptions {
@@ -47,6 +49,9 @@ function parseQuantity(qty: string): number {
 export async function verifySession(options: VerifySessionOptions): Promise<VerifySessionResult> {
   const { vestName, recipient, maxAmount, rpc = DEFAULT_RPC } = options
 
+  // The vest table is keyed by integer ID, not vestName.
+  // Query the most recent vests (reverse order) and find by name.
+  // Our vests are always freshly created, so they'll be in the last few rows.
   const resp = await fetch(`${rpc}/v1/chain/get_table_rows`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -54,10 +59,9 @@ export async function verifySession(options: VerifySessionOptions): Promise<Veri
       code: 'vest',
       scope: 'vest',
       table: 'vest',
-      lower_bound: vestName,
-      upper_bound: vestName,
-      limit: 1,
+      limit: 20,
       json: true,
+      reverse: true,
     }),
   })
 
@@ -69,14 +73,13 @@ export async function verifySession(options: VerifySessionOptions): Promise<Veri
 
   const data = await resp.json()
   const rows = data.rows as VestRow[]
+  const vest = (rows || []).find(r => r.vestName === vestName)
 
-  if (!rows || rows.length === 0) {
+  if (!vest) {
     throw new SessionVerificationError(
       `Vest "${vestName}" not found on-chain`
     )
   }
-
-  const vest = rows[0]
 
   // Verify vest name matches (belt and suspenders)
   if (vest.vestName !== vestName) {
@@ -93,7 +96,9 @@ export async function verifySession(options: VerifySessionOptions): Promise<Veri
   }
 
   // Verify deposit amount >= maxAmount
-  const depositAmount = parseQuantity(vest.deposit)
+  // deposit can be a string "10.0000 XPR" or extended_asset { quantity: "10.0000 XPR", contract: "eosio.token" }
+  const depositStr = typeof vest.deposit === 'string' ? vest.deposit : (vest.deposit as any)?.quantity || '0'
+  const depositAmount = parseQuantity(depositStr)
   const requiredAmount = parseQuantity(maxAmount)
   if (depositAmount < requiredAmount) {
     throw new SessionVerificationError(
@@ -101,7 +106,7 @@ export async function verifySession(options: VerifySessionOptions): Promise<Veri
     )
   }
 
-  // Verify stoppable
+  // Verify stoppable (on-chain uses 0/1, not true/false)
   if (!vest.stoppable) {
     throw new SessionVerificationError(
       `Vest "${vestName}" is not stoppable (required for sessions)`

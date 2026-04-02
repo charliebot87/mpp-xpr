@@ -3,12 +3,17 @@ export interface VestRow {
     vestName: string;
     from: string;
     to: string;
-    deposit: string;
+    deposit: string | {
+        quantity: string;
+        contract: string;
+    };
     vestPerSecond: string;
+    remainingVest?: string;
     startTime: number;
     endTime: number;
-    lastClaimTime: number;
-    stoppable: boolean;
+    lastClaimTime?: number;
+    lastVestTime?: number;
+    stoppable: number | boolean;
 }
 export interface VerifySessionOptions {
     vestName: string;

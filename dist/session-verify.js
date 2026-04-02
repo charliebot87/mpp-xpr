@@ -19,6 +19,9 @@ function parseQuantity(qty) {
  */
 export async function verifySession(options) {
     const { vestName, recipient, maxAmount, rpc = DEFAULT_RPC } = options;
+    // The vest table is keyed by integer ID, not vestName.
+    // Query the most recent vests (reverse order) and find by name.
+    // Our vests are always freshly created, so they'll be in the last few rows.
     const resp = await fetch(`${rpc}/v1/chain/get_table_rows`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -26,10 +29,9 @@ export async function verifySession(options) {
             code: 'vest',
             scope: 'vest',
             table: 'vest',
-            lower_bound: vestName,
-            upper_bound: vestName,
-            limit: 1,
+            limit: 20,
             json: true,
+            reverse: true,
         }),
     });
     if (!resp.ok) {
@@ -37,10 +39,10 @@ export async function verifySession(options) {
     }
     const data = await resp.json();
     const rows = data.rows;
-    if (!rows || rows.length === 0) {
+    const vest = (rows || []).find(r => r.vestName === vestName);
+    if (!vest) {
         throw new SessionVerificationError(`Vest "${vestName}" not found on-chain`);
     }
-    const vest = rows[0];
     // Verify vest name matches (belt and suspenders)
     if (vest.vestName !== vestName) {
         throw new SessionVerificationError(`Vest name mismatch: expected "${vestName}", got "${vest.vestName}"`);
@@ -50,12 +52,14 @@ export async function verifySession(options) {
         throw new SessionVerificationError(`Recipient mismatch: expected "${recipient}", got "${vest.to}"`);
     }
     // Verify deposit amount >= maxAmount
-    const depositAmount = parseQuantity(vest.deposit);
+    // deposit can be a string "10.0000 XPR" or extended_asset { quantity: "10.0000 XPR", contract: "eosio.token" }
+    const depositStr = typeof vest.deposit === 'string' ? vest.deposit : vest.deposit?.quantity || '0';
+    const depositAmount = parseQuantity(depositStr);
     const requiredAmount = parseQuantity(maxAmount);
     if (depositAmount < requiredAmount) {
         throw new SessionVerificationError(`Deposit too low: expected >= ${maxAmount}, got ${vest.deposit}`);
     }
-    // Verify stoppable
+    // Verify stoppable (on-chain uses 0/1, not true/false)
     if (!vest.stoppable) {
         throw new SessionVerificationError(`Vest "${vestName}" is not stoppable (required for sessions)`);
     }
