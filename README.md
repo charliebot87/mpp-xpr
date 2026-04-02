@@ -7,6 +7,10 @@ Zero gas fees. Sub-second finality. Human-readable accounts. WebAuth wallet supp
 [![npm](https://img.shields.io/npm/v/mpp-xpr)](https://www.npmjs.com/package/mpp-xpr)
 [![license](https://img.shields.io/npm/l/mpp-xpr)](LICENSE)
 
+## What is this?
+
+An [`mppx`](https://github.com/wevm/mppx) plugin that adds XPR Network as a crypto payment method for the Machine Payments Protocol. Works alongside `tempo.charge` and `stripe.charge` — any MPP-compatible client can pay with XPR tokens.
+
 ## Installation
 
 ```bash
@@ -18,39 +22,34 @@ npm install mpp-xpr mppx
 ### Server — accept XPR payments
 
 ```typescript
-import express from 'express'
-import { Credential, Receipt } from 'mppx'
-import { createServer } from 'mpp-xpr'
+import crypto from 'crypto'
+import { Mppx } from 'mppx/server'
+import { createServer, charge } from 'mpp-xpr'
 
-const app = express()
 const xpr = createServer({ recipient: 'youraccount' })
+const mppSecretKey = crypto.randomBytes(32).toString('base64')
 
-app.get('/api/premium', async (req, res) => {
-  const auth = req.headers['authorization']
+export async function handler(request: Request) {
+  const mppx = Mppx.create({
+    methods: [xpr],
+    secretKey: mppSecretKey,
+  })
 
-  // No credential — return 402 payment challenge
-  if (!auth) {
-    res.status(402).json({
-      method: 'xpr',
-      intent: 'charge',
-      request: { amount: '0.0001 XPR', recipient: 'youraccount', memo: 'access' },
-    })
-    return
-  }
+  const result = await mppx.charge({
+    amount: '0.0001',
+    recipient: 'youraccount',
+  })(request)
 
-  // Verify the payment on-chain
-  const credential = Credential.deserialize(auth)
-  const receipt = await xpr.verify({ credential, request: { amount: '0.0001 XPR', recipient: 'youraccount' } })
+  if (result.status === 402) return result.challenge
 
-  res.setHeader('Payment-Receipt', Receipt.serialize(receipt))
-  res.json({ data: 'premium content' })
-})
+  return result.withReceipt(Response.json({ data: 'premium content' }))
+}
 ```
 
 ### Client — pay automatically on 402
 
 ```typescript
-import { Mppx } from 'mppx'
+import { Mppx } from 'mppx/client'
 import { createClient } from 'mpp-xpr'
 
 const xprClient = createClient({
@@ -61,10 +60,10 @@ const xprClient = createClient({
   },
 })
 
-const { fetch: payFetch } = Mppx.create({ methods: [xprClient] })
+const mppx = Mppx.create({ methods: [xprClient] })
 
 // Automatically pays XPR when a 402 is received
-const response = await payFetch('https://api.example.com/premium')
+const response = await mppx.fetch('https://api.example.com/premium')
 ```
 
 See [`examples/`](examples/) for a complete working demo.
@@ -73,7 +72,7 @@ See [`examples/`](examples/) for a complete working demo.
 
 ### `createServer(options)`
 
-Creates a server-side payment verifier. Returns a `Method.Server` compatible with `mppx`.
+Creates a server-side payment verifier. Returns a `Method.Server` compatible with `mppx/server`.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
@@ -81,25 +80,19 @@ Creates a server-side payment verifier. Returns a `Method.Server` compatible wit
 | `rpcEndpoint` | `string` | `https://api.protonnz.com` | XPR Network RPC endpoint |
 | `verifyAmount` | `boolean` | `true` | Check that the transferred amount matches the request |
 
-Internally verifies via the node RPC first, then falls back to Hyperion (`proton.eosusa.io`) for recently submitted transactions.
-
-**Throws** on verification failure (failed receipts are handled by mppx as 402 responses).
-
----
+Verifies via the node RPC first, then falls back to [Hyperion](https://proton.eosusa.io) for recently submitted transactions.
 
 ### `createClient(options)`
 
-Creates a client-side payment method. Returns a `Method.Client` compatible with `Mppx.create()`.
+Creates a client-side payment method. Returns a `Method.Client` compatible with `mppx/client`.
 
 | Option | Type | Description |
 |---|---|---|
-| `signTransaction` | `(actions) => Promise<{ transactionId, blockNum? }>` | Wallet integration — signs and broadcasts the `eosio.token::transfer` action |
-
----
+| `signTransaction` | `(actions) => Promise<{ transactionId, blockNum? }>` | Wallet integration — signs and broadcasts `eosio.token::transfer` |
 
 ### `charge` (method definition)
 
-The raw method schema — useful if you want to build your own client or server logic.
+The raw method schema — useful for building custom client/server logic.
 
 ```typescript
 import { charge } from 'mpp-xpr'
@@ -115,7 +108,7 @@ Client                              Server
   │                                   │
   │── GET /api/premium ──────────────>│
   │                                   │← No credential
-  │<── 402 { method:'xpr', amount }───│
+  │<── 402 + WWW-Authenticate ────────│
   │                                   │
   │── signs eosio.token::transfer ────│ (WebAuth / @proton/js)
   │── submits tx to XPR Network ──────│
@@ -126,16 +119,17 @@ Client                              Server
   │<── 200 + Payment-Receipt ─────────│
 ```
 
-## Why XPR Network?
+## Why XPR Network for Machine Payments?
 
-| Feature | Value |
-|---|---|
-| Gas fees | Zero |
-| Finality | < 0.5 seconds |
-| Wallet | WebAuth — biometrics, no seed phrases |
-| Accounts | Human-readable (e.g. `charliebot`) |
-| Token | `XPR` — 4 decimal places (`1.0000 XPR`) |
-| Verification | On-chain RPC + Hyperion fallback |
+| Feature | XPR Network | Ethereum | Solana |
+|---|---|---|---|
+| Gas fees | **Zero** | $0.50-50+ | $0.001-0.01 |
+| Finality | **< 0.5 seconds** | ~12 seconds | ~400ms |
+| Account format | **Human-readable** (`charliebot`) | Hex (`0x7a3b...`) | Base58 (`7nYB...`) |
+| Wallet | **WebAuth** (biometrics) | MetaMask | Phantom |
+| Identity | **Built-in KYC** | None | None |
+
+For micropayments, zero gas fees mean 100% of the payment goes to the service — no transaction cost eating into a $0.001 API call.
 
 ## Chain Info
 
@@ -144,14 +138,18 @@ Client                              Server
 | Mainnet RPC | `https://api.protonnz.com` |
 | Chain ID | `384da888112027f0321850a169f737c33e53b388aad48b5adace4bab97f437e0` |
 | Token contract | `eosio.token` |
+| Token symbol | `XPR` (4 decimal places) |
 | Hyperion | `https://proton.eosusa.io` |
 | Explorer | `https://explorer.xprnetwork.org` |
 | Wallet | [webauth.com](https://webauth.com) |
 
 ## Resources
 
-- [Machine Payments Protocol](https://mpp.dev)
-- [mppx SDK](https://github.com/wevm/mppx)
+- [Machine Payments Protocol](https://mpp.dev) — the open protocol spec
+- [MPP Overview](https://mpp.dev/overview) — how MPP works
+- [Stripe MPP Docs](https://docs.stripe.com/payments/machine/mpp) — Stripe's MPP integration guide
+- [IETF Spec](https://paymentauth.org) — the IETF payment authorization spec
+- [mppx SDK](https://github.com/wevm/mppx) — official MPP SDK by Tempo/Wevm
 - [XPR Network Docs](https://docs.xprnetwork.org)
 - [WebAuth Wallet](https://webauth.com)
 - [XPR Network Explorer](https://explorer.xprnetwork.org)
