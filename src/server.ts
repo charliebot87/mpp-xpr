@@ -45,31 +45,60 @@ function chargeServer(parameters: XprChargeParameters) {
       const expectedRecipient = request.recipient ?? recipient
       const expectedAmount = request.amount
 
-      // Check for replay (idempotency)
+      // Check for replay (idempotency) — if we already verified this tx, return cached receipt
       const storeKey = `mppx:xpr:charge:${txHash.toLowerCase()}`
       const seen = await usedTxStore.get(storeKey)
       if (seen !== null) {
-        throw new Error('Transaction hash has already been used (replay rejected)')
+        // Already verified — return cached receipt (idempotent)
+        const cached = typeof seen === 'object' && seen !== null ? seen as Record<string, any> : null
+        return Receipt.from({
+          method: 'xpr',
+          status: 'success',
+          reference: txHash,
+          timestamp: cached?.timestamp || new Date().toISOString(),
+        })
       }
 
-      // Verify on-chain via Hyperion
-      const result = await verifyTransfer({
-        txHash,
-        recipient: expectedRecipient,
-        amount: expectedAmount,
-        memo: request.memo,
-        hyperion,
-      })
+      // Verify on-chain via Hyperion with retries.
+      // Hyperion indexing can lag 2-10s behind block production,
+      // so we retry with exponential backoff before failing.
+      const MAX_RETRIES = 4
+      const INITIAL_DELAY_MS = 1500
+      let lastError: Error | null = null
 
-      // Mark as used
-      await usedTxStore.put(storeKey, Date.now())
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+          const delay = INITIAL_DELAY_MS * Math.pow(1.5, attempt - 1)
+          await new Promise((r) => setTimeout(r, delay))
+        }
+        try {
+          const result = await verifyTransfer({
+            txHash,
+            recipient: expectedRecipient,
+            amount: expectedAmount,
+            memo: request.memo,
+            hyperion,
+          })
 
-      return Receipt.from({
-        method: 'xpr',
-        status: 'success',
-        reference: txHash,
-        timestamp: result.timestamp || new Date().toISOString(),
-      })
+          // Mark as used with timestamp for idempotent replay
+          await usedTxStore.put(storeKey, { timestamp: result.timestamp || new Date().toISOString() })
+
+          return Receipt.from({
+            method: 'xpr',
+            status: 'success',
+            reference: txHash,
+            timestamp: result.timestamp || new Date().toISOString(),
+          })
+        } catch (e: any) {
+          lastError = e
+          // Only retry on "not found" errors (indexing lag), not on validation failures
+          if (e.message && !e.message.includes('not found') && !e.message.includes('HTTP 4')) {
+            throw e
+          }
+        }
+      }
+
+      throw lastError!
     },
   })
 }
