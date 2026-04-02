@@ -91,8 +91,19 @@ function chargeServer(parameters: XprChargeParameters) {
           })
         } catch (e: any) {
           lastError = e
-          // Only retry on "not found" errors (indexing lag), not on validation failures
-          if (e.message && !e.message.includes('not found') && !e.message.includes('HTTP 4')) {
+          // Retry on transient errors (not found, rate limited, server errors).
+          // Only throw immediately on definitive validation failures
+          // (amount mismatch, memo mismatch, wrong recipient, etc.)
+          const msg = e.message || ''
+          const isTransient = msg.includes('not found') ||
+            msg.includes('HTTP 404') ||
+            msg.includes('HTTP 429') ||
+            msg.includes('HTTP 502') ||
+            msg.includes('HTTP 503') ||
+            msg.includes('HTTP 504') ||
+            msg.includes('did not execute') ||
+            msg.includes('fetch failed')
+          if (!isTransient) {
             throw e
           }
         }

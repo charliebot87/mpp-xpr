@@ -32,8 +32,11 @@ export async function verifyTransfer(options: VerifyOptions): Promise<VerifyResu
   )
 
   if (!resp.ok) {
+    const statusMsg = resp.status === 429 ? 'rate limited' :
+      resp.status === 404 ? 'not found' :
+      resp.status >= 500 ? 'server error' : 'not found'
     throw new VerificationError(
-      `Transaction ${txHash} not found (HTTP ${resp.status})`
+      `Transaction ${txHash} ${statusMsg} (HTTP ${resp.status})`
     )
   }
 

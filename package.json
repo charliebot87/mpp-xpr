@@ -1,6 +1,6 @@
 {
   "name": "mppx-xpr-network",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "XPR Network payment method for the Machine Payments Protocol (mppx)",
   "type": "module",
   "main": "./dist/index.js",

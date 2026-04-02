@@ -8,7 +8,10 @@ export async function verifyTransfer(options) {
     const hyperion = options.hyperion ?? DEFAULT_HYPERION;
     const resp = await fetch(`${hyperion}/v2/history/get_transaction?id=${txHash}`);
     if (!resp.ok) {
-        throw new VerificationError(`Transaction ${txHash} not found (HTTP ${resp.status})`);
+        const statusMsg = resp.status === 429 ? 'rate limited' :
+            resp.status === 404 ? 'not found' :
+                resp.status >= 500 ? 'server error' : 'not found';
+        throw new VerificationError(`Transaction ${txHash} ${statusMsg} (HTTP ${resp.status})`);
     }
     const data = await resp.json();
     if (!data.executed) {
