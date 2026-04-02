@@ -5,6 +5,19 @@ import { sessionServer } from './session.js'
 import type { XprChargeParameters } from './types.js'
 
 /**
+ * Normalize a Hyperion timestamp to strict ISO 8601.
+ * Hyperion returns '2026-04-02T21:29:57.500' (no timezone).
+ * Receipt.from() requires a Z or ±HH:MM suffix.
+ */
+function normalizeTimestamp(ts?: string): string {
+  if (!ts) return new Date().toISOString()
+  // If already has timezone suffix, return as-is
+  if (ts.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(ts)) return ts
+  // Hyperion timestamps are UTC — append Z
+  return ts + 'Z'
+}
+
+/**
  * Creates a server-side XPR Network charge method for mppx.
  *
  * Usage with Mppx.create():
@@ -56,7 +69,7 @@ function chargeServer(parameters: XprChargeParameters) {
           method: 'xpr',
           status: 'success',
           reference: txHash,
-          timestamp: cached?.timestamp || new Date().toISOString(),
+          timestamp: normalizeTimestamp(cached?.timestamp),
         })
       }
 
@@ -88,7 +101,7 @@ function chargeServer(parameters: XprChargeParameters) {
             method: 'xpr',
             status: 'success',
             reference: txHash,
-            timestamp: result.timestamp || new Date().toISOString(),
+            timestamp: normalizeTimestamp(result.timestamp),
           })
         } catch (e: any) {
           lastError = e
