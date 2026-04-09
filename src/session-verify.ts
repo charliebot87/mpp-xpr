@@ -28,12 +28,15 @@ export interface VerifySessionResult {
 }
 
 /**
- * Parse an extended_asset quantity string like "10.0000 XPR" into a number.
+ * Parse an extended_asset quantity string like "10.0000 XPR" into integer units.
+ * Uses bigint arithmetic to avoid floating-point precision issues with money.
+ * Assumes 4 decimal places (XPR standard).
  */
-function parseQuantity(qty: string): number {
-  // Handle extended_asset format: "10.0000 XPR" or just amount part
-  const parts = qty.split(' ')
-  return parseFloat(parts[0])
+function parseQuantityUnits(qty: string): bigint {
+  const [amountStr] = qty.split(' ')
+  const [whole = '0', frac = ''] = amountStr.split('.')
+  const fracPadded = frac.padEnd(4, '0').slice(0, 4)
+  return BigInt(whole) * 10000n + BigInt(fracPadded)
 }
 
 /**
@@ -98,8 +101,8 @@ export async function verifySession(options: VerifySessionOptions): Promise<Veri
   // Verify deposit amount >= maxAmount
   // deposit can be a string "10.0000 XPR" or extended_asset { quantity: "10.0000 XPR", contract: "eosio.token" }
   const depositStr = typeof vest.deposit === 'string' ? vest.deposit : (vest.deposit as any)?.quantity || '0'
-  const depositAmount = parseQuantity(depositStr)
-  const requiredAmount = parseQuantity(maxAmount)
+  const depositAmount = parseQuantityUnits(depositStr)
+  const requiredAmount = parseQuantityUnits(maxAmount)
   if (depositAmount < requiredAmount) {
     throw new SessionVerificationError(
       `Deposit too low: expected >= ${maxAmount}, got ${vest.deposit}`
