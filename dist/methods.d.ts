@@ -18,10 +18,16 @@ export declare const charge: {
         readonly request: z.ZodMiniObject<{
             /** Amount in XPR (e.g., "1.0000 XPR" or "10000" in base units) */
             amount: z.ZodMiniString<string>;
-            /** XPR account name to receive payment */
-            recipient: z.ZodMiniString<string>;
-            /** Optional memo (defaults to challenge ID) */
-            memo: z.ZodMiniOptional<z.ZodMiniString<string>>;
+            /**
+             * XPR-specific method details (non-standard fields per MPP first-party SDK spec).
+             * These are embedded in the 402 challenge by the server and read by the client.
+             */
+            methodDetails: z.ZodMiniOptional<z.ZodMiniObject<{
+                /** XPR account name to receive payment */
+                recipient: z.ZodMiniOptional<z.ZodMiniString<string>>;
+                /** Optional memo (defaults to challenge ID) */
+                memo: z.ZodMiniOptional<z.ZodMiniString<string>>;
+            }, z.core.$strip>>;
         }, z.core.$strip>;
         readonly credential: {
             readonly payload: z.ZodMiniObject<{

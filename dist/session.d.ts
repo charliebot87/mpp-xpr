@@ -40,8 +40,10 @@ export declare function sessionServer(config: XprSessionConfig): Method.Server<{
         readonly request: import("zod/mini").ZodMiniObject<{
             maxAmount: import("zod/mini").ZodMiniString<string>;
             duration: import("zod/mini").ZodMiniNumber<number>;
-            recipient: import("zod/mini").ZodMiniString<string>;
-            vestName: import("zod/mini").ZodMiniString<string>;
+            methodDetails: import("zod/mini").ZodMiniOptional<import("zod/mini").ZodMiniObject<{
+                recipient: import("zod/mini").ZodMiniOptional<import("zod/mini").ZodMiniString<string>>;
+                vestName: import("zod/mini").ZodMiniOptional<import("zod/mini").ZodMiniString<string>>;
+            }, import("zod/v4/core").$strip>>;
         }, import("zod/v4/core").$strip>;
         readonly credential: {
             readonly payload: import("zod/mini").ZodMiniObject<{
@@ -50,5 +52,7 @@ export declare function sessionServer(config: XprSessionConfig): Method.Server<{
         };
     };
 }, {
-    readonly recipient: string;
+    readonly methodDetails: {
+        readonly recipient: string;
+    };
 }, undefined>;

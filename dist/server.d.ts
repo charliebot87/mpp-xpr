@@ -26,8 +26,10 @@ declare function chargeServer(parameters: XprChargeParameters): Method.Server<{
     readonly schema: {
         readonly request: import("zod/mini").ZodMiniObject<{
             amount: import("zod/mini").ZodMiniString<string>;
-            recipient: import("zod/mini").ZodMiniString<string>;
-            memo: import("zod/mini").ZodMiniOptional<import("zod/mini").ZodMiniString<string>>;
+            methodDetails: import("zod/mini").ZodMiniOptional<import("zod/mini").ZodMiniObject<{
+                recipient: import("zod/mini").ZodMiniOptional<import("zod/mini").ZodMiniString<string>>;
+                memo: import("zod/mini").ZodMiniOptional<import("zod/mini").ZodMiniString<string>>;
+            }, import("zod/v4/core").$strip>>;
         }, import("zod/v4/core").$strip>;
         readonly credential: {
             readonly payload: import("zod/mini").ZodMiniObject<{
@@ -37,8 +39,10 @@ declare function chargeServer(parameters: XprChargeParameters): Method.Server<{
     };
 }, {
     readonly amount: string | undefined;
-    readonly recipient: string;
-    readonly memo: string | undefined;
+    readonly methodDetails: {
+        readonly recipient: string;
+        readonly memo: string | undefined;
+    };
 }, undefined>;
 /**
  * XPR Network payment method namespace for mppx.

@@ -16,7 +16,12 @@ import { charge } from './methods.js';
 export function xprClient(options) {
     return Method.toClient(charge, {
         async createCredential({ challenge }) {
-            const { amount, recipient, memo } = challenge.request;
+            const { amount, methodDetails } = challenge.request;
+            const recipient = methodDetails?.recipient;
+            const memo = methodDetails?.memo;
+            if (!recipient) {
+                throw new Error('Missing recipient in challenge methodDetails');
+            }
             // Build eosio.token::transfer action
             const actions = [
                 {

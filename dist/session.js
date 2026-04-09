@@ -53,22 +53,27 @@ export function sessionServer(config) {
     const usedVestStore = Store.memory();
     return Method.toServer(sessionMethod, {
         defaults: {
-            recipient,
+            // Embed recipient in methodDetails per MPP first-party SDK spec
+            methodDetails: {
+                recipient,
+            },
         },
         // Generate a unique vest name for each challenge.
         // When a credential is present, preserve the vestName from the echoed challenge
         // so the HMAC matches. Only generate a new name for fresh 402 challenges.
         request({ credential, request }) {
-            const existingVestName = credential?.challenge?.request?.vestName;
+            const existingVestName = credential?.challenge?.request?.methodDetails?.vestName;
             return {
                 ...request,
-                recipient: request.recipient ?? recipient,
-                vestName: existingVestName || request.vestName || generateVestName(),
+                methodDetails: {
+                    recipient: request.methodDetails?.recipient ?? recipient,
+                    vestName: existingVestName || request.methodDetails?.vestName || generateVestName(),
+                },
             };
         },
         async verify({ credential, request }) {
             const { vestName } = credential.payload;
-            const expectedRecipient = request.recipient ?? recipient;
+            const expectedRecipient = request.methodDetails?.recipient ?? recipient;
             // Check for replay — if already verified, return cached receipt (idempotent)
             const storeKey = `mppx:xpr:session:${vestName}`;
             const seen = await usedVestStore.get(storeKey);

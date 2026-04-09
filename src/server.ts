@@ -51,12 +51,15 @@ function chargeServer(parameters: XprChargeParameters) {
   return Method.toServer(chargeMethod, {
     defaults: {
       amount,
-      recipient,
-      memo,
+      // Embed recipient and memo in methodDetails per MPP first-party SDK spec
+      methodDetails: {
+        recipient,
+        memo,
+      },
     },
     async verify({ credential, request }) {
       const { txHash } = credential.payload
-      const expectedRecipient = request.recipient ?? recipient
+      const expectedRecipient = request.methodDetails?.recipient ?? recipient
       const expectedAmount = request.amount
 
       // Check for replay (idempotency) — if we already verified this tx, return cached receipt
@@ -89,7 +92,7 @@ function chargeServer(parameters: XprChargeParameters) {
             txHash,
             recipient: expectedRecipient,
             amount: expectedAmount,
-            memo: request.memo,
+            memo: request.methodDetails?.memo,
             hyperion,
             hyperionEndpoints,
           })

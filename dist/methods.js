@@ -18,10 +18,16 @@ export const charge = Method.from({
         request: z.object({
             /** Amount in XPR (e.g., "1.0000 XPR" or "10000" in base units) */
             amount: z.string(),
-            /** XPR account name to receive payment */
-            recipient: z.string(),
-            /** Optional memo (defaults to challenge ID) */
-            memo: z.optional(z.string()),
+            /**
+             * XPR-specific method details (non-standard fields per MPP first-party SDK spec).
+             * These are embedded in the 402 challenge by the server and read by the client.
+             */
+            methodDetails: z.optional(z.object({
+                /** XPR account name to receive payment */
+                recipient: z.optional(z.string()),
+                /** Optional memo (defaults to challenge ID) */
+                memo: z.optional(z.string()),
+            })),
         }),
         credential: {
             payload: z.object({

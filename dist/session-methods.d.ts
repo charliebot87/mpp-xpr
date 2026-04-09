@@ -21,10 +21,15 @@ export declare const session: {
             maxAmount: z.ZodMiniString<string>;
             /** Session duration in seconds */
             duration: z.ZodMiniNumber<number>;
-            /** XPR account name to receive payment */
-            recipient: z.ZodMiniString<string>;
-            /** Unique vest name (EOSIO name: 12 chars max, a-z, 1-5, dots) */
-            vestName: z.ZodMiniString<string>;
+            /**
+             * XPR-specific method details (non-standard fields per MPP first-party SDK spec).
+             */
+            methodDetails: z.ZodMiniOptional<z.ZodMiniObject<{
+                /** XPR account name to receive payment */
+                recipient: z.ZodMiniOptional<z.ZodMiniString<string>>;
+                /** Unique vest name (EOSIO name: 12 chars max, a-z, 1-5, dots) */
+                vestName: z.ZodMiniOptional<z.ZodMiniString<string>>;
+            }, z.core.$strip>>;
         }, z.core.$strip>;
         readonly credential: {
             readonly payload: z.ZodMiniObject<{

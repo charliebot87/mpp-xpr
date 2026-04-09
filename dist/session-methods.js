@@ -21,10 +21,15 @@ export const session = Method.from({
             maxAmount: z.string(),
             /** Session duration in seconds */
             duration: z.number(),
-            /** XPR account name to receive payment */
-            recipient: z.string(),
-            /** Unique vest name (EOSIO name: 12 chars max, a-z, 1-5, dots) */
-            vestName: z.string(),
+            /**
+             * XPR-specific method details (non-standard fields per MPP first-party SDK spec).
+             */
+            methodDetails: z.optional(z.object({
+                /** XPR account name to receive payment */
+                recipient: z.optional(z.string()),
+                /** Unique vest name (EOSIO name: 12 chars max, a-z, 1-5, dots) */
+                vestName: z.optional(z.string()),
+            })),
         }),
         credential: {
             payload: z.object({
