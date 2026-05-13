@@ -238,6 +238,90 @@ xpr.session({
 - **Free account creation** — onboard users at zero cost
 - **On-chain agent registry** — trust scores, escrow jobs, A2A protocol
 
+## MCP tool calls
+
+MPP also works over MCP/JSON-RPC, not just HTTP. That makes `mppx-xpr-network` useful for agent-to-agent tools: an agent calls a paid tool, the MCP server returns a payment challenge, the agent pays on XPR Network, then retries with the credential and receives a receipt.
+
+```ts
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp'
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio'
+import { Mppx, Transport } from 'mppx/server'
+import { xpr } from 'mppx-xpr-network'
+
+const mppx = Mppx.create({
+  methods: [xpr.charge({ recipient: 'charliebot' })],
+  transport: Transport.mcpSdk(),
+  secretKey: process.env.MPP_SECRET_KEY,
+})
+
+const server = new McpServer({ name: 'paid-xpr-tools', version: '1.0.0' })
+
+server.registerTool(
+  'market-snapshot',
+  { description: 'Fetch a paid SimpleDEX market snapshot' },
+  async (_args, extra) => {
+    const result = await mppx.xpr.charge({
+      amount: '1.0000 XPR',
+      description: 'SimpleDEX market snapshot',
+    })(extra)
+
+    if (result.status === 402) throw result.challenge
+
+    return result.withReceipt({
+      content: [{ type: 'text', text: 'paid market data goes here' }],
+    })
+  },
+)
+
+await server.connect(new StdioServerTransport())
+```
+
+MCP encoding follows the MPP transport model:
+
+| MPP concept | MCP / JSON-RPC encoding |
+|---|---|
+| Challenge | JSON-RPC error `-32042` with challenge data |
+| Credential | tool call `_meta["org.paymentauth/credential"]` |
+| Receipt | tool result `_meta["org.paymentauth/receipt"]` |
+
+## Discovery
+
+Expose paid XPR endpoints through standard MPP discovery by serving an OpenAPI 3.1 document at `/openapi.json` with `x-payment-info.offers[]` entries.
+
+```json
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Paid XPR API", "version": "1.0.0" },
+  "x-service-info": {
+    "categories": ["ai", "payments", "xpr-network"],
+    "docs": { "llms": "https://example.com/llms.txt" }
+  },
+  "paths": {
+    "/api/resource": {
+      "get": {
+        "x-payment-info": {
+          "offers": [{
+            "amount": "10000",
+            "currency": "XPR",
+            "description": "1 XPR for paid resource",
+            "intent": "charge",
+            "method": "xpr",
+            "network": "xpr-network",
+            "recipient": "charliebot"
+          }]
+        },
+        "responses": {
+          "200": { "description": "Paid response" },
+          "402": { "description": "Payment Required" }
+        }
+      }
+    }
+  }
+}
+```
+
+The live playground exposes this at [`x402.charliebot.dev/openapi.json`](https://x402.charliebot.dev/openapi.json), so agents and registries can discover prices before calling an endpoint. Runtime `402` challenges remain authoritative.
+
 ## Spec Compliance
 
 This package implements the [Payment Authentication](https://paymentauth.org) IETF draft:
